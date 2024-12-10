@@ -8,27 +8,37 @@ addpath('../../src/matlab')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % DISCRETIZATION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-k = 4; % Order of accuracy
-%h = 0.02; % Discretization size
-%m = 1/h; % Vertical resolution
-%n = 1/h; % Horizontal resolution
-mx = 256;
-ny = 256;
-h = 1/mx;
-hy = 1/ny;
+% k = 4; % Order of accuracy
+% %h = 0.02; % Discretization size
+% %m = 1/h; % Vertical resolution
+% %n = 1/h; % Horizontal resolution
+% mx = 32;
+% ny = 32;
+% h = 1/mx;
+% hy = 1/ny;
+% 
+% L2 = lap2D(k, mx, 1, ny, 1); % 2D Mimetic laplacian operator
+% L = L2 + robinBC2D(k, mx, 1, ny, 1, 1, 0); % Dirichlet BC
+% 
+% RHS = zeros(mx+2, ny+2);
+% 
+% % Source term
+% RHS(1, :) = 100; % Known value at the bottom boundary
+% 
+% RHS = reshape(RHS, [], 1);
 
-L2 = lap2D(k, mx, 1, ny, 1); % 2D Mimetic laplacian operator
-L = L2 + robinBC2D(k, mx, 1, ny, 1, 1, 0); % Dirichlet BC
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% LOADING ALREADY DISCRETIZED LINEAR SYSTEMS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+cd('linear_systems');
+load('minimal_poisson2D_k_2_m_32'); % Change parameters here
+                                    % k = 2, 4
+                                    % m = 32, 64, 128, 256, 512
 
 % Condition number (estimated) for LHS, no preconditioning
 CondLNoPrec = condest(L);
 
-RHS = zeros(mx+2, ny+2);
-
-% Source term
-RHS(1, :) = 100; % Known value at the bottom boundary
-
-RHS = reshape(RHS, [], 1);
+cd('../');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % NUMERICAL SOLUTION - BACKSLASH - NO PRECONDITIONING
@@ -128,7 +138,7 @@ tol = 1e-9;
 maxit = 100;
 
 % REEMPLAZAR CON cd (path_to_solvers) O EQUIVALENTE
-cd('C:\Users\HP\OneDrive\MSc Thesis\krysbas-dev\test-prec-gmres\src\solvers\')
+cd;
 
 % BUILT-IN GMRES
 % m = 30;
