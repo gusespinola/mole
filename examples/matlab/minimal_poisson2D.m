@@ -6,17 +6,31 @@ close all
 addpath('../../src/matlab')
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% GLOBAL PARAMETERS - DISCRETIZATION
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+k = 2; % Order of accuracy
+%h = 0.02; % Discretization size
+%m = 1/h; % Vertical resolution
+%n = 1/h; % Horizontal resolution
+mx = 32;
+ny = 32;
+h = 1/mx;
+hy = 1/ny;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% LOADING ALREADY DISCRETIZED LINEAR SYSTEMS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+cd('linear_systems');
+load(strcat('minimal_poisson2D_k_',num2str(k),'_m_',num2str(mx),'.mat'));
+
+% Condition number (estimated) for LHS, no preconditioning
+CondLNoPrec = condest(L);
+
+cd('../');
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % DISCRETIZATION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% k = 4; % Order of accuracy
-% %h = 0.02; % Discretization size
-% %m = 1/h; % Vertical resolution
-% %n = 1/h; % Horizontal resolution
-% mx = 32;
-% ny = 32;
-% h = 1/mx;
-% hy = 1/ny;
-% 
 % L2 = lap2D(k, mx, 1, ny, 1); % 2D Mimetic laplacian operator
 % L = L2 + robinBC2D(k, mx, 1, ny, 1, 1, 0); % Dirichlet BC
 % 
@@ -27,18 +41,6 @@ addpath('../../src/matlab')
 % 
 % RHS = reshape(RHS, [], 1);
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% LOADING ALREADY DISCRETIZED LINEAR SYSTEMS
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-cd('linear_systems');
-load('minimal_poisson2D_k_2_m_32'); % Change parameters here
-                                    % k = 2, 4
-                                    % m = 32, 64, 128, 256, 512
-
-% Condition number (estimated) for LHS, no preconditioning
-CondLNoPrec = condest(L);
-
-cd('../');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % NUMERICAL SOLUTION - BACKSLASH - NO PRECONDITIONING
@@ -74,16 +76,16 @@ uxy=(200/pi).*uxy;
 disp('LEFT-PRECONDITIONING');
 tic;
 % Jacobi
-M_jacobi = (diag(diag(L)))^-1;
-L = M_jacobi * L;
-RHS = M_jacobi * RHS;
-CondLpostJacobi = condest(L);
+% M_jacobi = (diag(diag(L)))^-1;
+% L = M_jacobi * L;
+% RHS = M_jacobi * RHS;
+% CondLpostJacobi = condest(L);
 
 % Gauss-Seidel
-% M_GS = (tril(L1))^-1;
-% L= M_GS*L1;
-% RHS = M_GS*RHS1;
-% CondLpostGS = condest(L);
+M_GS = (tril(L))^-1;
+L= M_GS*L;
+RHS = M_GS*RHS;
+CondLpostGS = condest(L);
 
 % SOR
 % n=size(L);
@@ -204,14 +206,16 @@ timeG = toc();
 disp(timeG);
 SOLGRS = reshape(SOLG, mx + 2, ny + 2);
 
-% GMRES(m) + JACOBI
-disp('PREC-GMRES(m), JACOBI');
-tic;
-[SOLGP, flagGP, resGP, iterGP, resvecGP] = gmres(L, RHS, m, tol, maxcycles, diag(diag(L)));
-relresvecGP = resvecGP ./ norm(RHS);
-timeGP = toc();
-disp(timeGP);
-SOLGPRS = reshape(SOLGP, mx + 2, ny + 2);
+% GMRES(m) + PRECONDITIONER
+% disp('PREC-GMRES(m), GAUSS-SEIDEL');
+% tic;
+% [SOLGP, flagGP, resGP, iterGP, resvecGP] = gmres(L, RHS, m, tol, maxcycles, tril(L));
+%                                                 % Jacobi: M = diag(diag(L));
+%                                                 % GS: M = tril(L);
+% relresvecGP = resvecGP ./ norm(RHS);
+% timeGP = toc();
+% disp(timeGP);
+% SOLGPRS = reshape(SOLGP, mx + 2, ny + 2);
 
 % % BICGSTAB
 % disp('BICG')
