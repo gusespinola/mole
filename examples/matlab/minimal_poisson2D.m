@@ -12,12 +12,13 @@ cd(folder_to_cover)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % GLOBAL PARAMETERS - DISCRETIZATION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-k = 4; % Order of accuracy
+k = 2; % Order of accuracy
 %h = 0.02; % Discretization size
 %m = 1/h; % Vertical resolution
 %n = 1/h; % Horizontal resolution
-mx = 128;
-ny = 128;
+mx = 32;
+ny = 32;
+n = 32 + 2;  % Grid size (n x n), meaning (n-2)*(n-2) interior points
 disp('k');
 disp(k);
 disp('mx');
@@ -32,20 +33,20 @@ beta = 0;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % TURN THESE ON/OFF FOR SOME FEATURES (PLOT FIGURES, SAVE FILES)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-is_preconditioned = 0;
+is_preconditioned = 1;
 plot_figures = 1;
-save_experiment = 1;
-save_linear_systems = 1;
+save_experiment = 0;
+save_linear_systems = 0;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % GLOBAL PARAMETERS - PRECONDITIONING
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Uncomment only once at a time
 % preconditioner = 'none';
-% preconditioner = 'Jacobi';
+preconditioner = 'Jacobi';
 % preconditioner = 'Gauss_Seidel';
-omega = 1.75; % Only useful for SOR
-preconditioner = strcat('SOR_omega_', num2str(omega));
+omega = 1.0; % Only useful for SOR
+% preconditioner = strcat('SOR_omega_', num2str(omega));
 % preconditioner = 'ILU';
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -73,18 +74,33 @@ linear_system = strcat('minimal_poisson2D_k_',num2str(k),...
 
 load(linear_system);
 
-cd('../');
+% Eigenvalues of non-preconditioned matrix
+% autovals = eig(full(L));
+% autovName = strcat('eig_k_', num2str(k), '_m_', num2str(mx),...
+%         '_none.mat');
+% save(autovName, "autovals");
+
+
+% fig8 = figure(8);
+% plot(autovals, '+');
+% hold on;
+% figName = strcat('eig_k_', num2str(k), '_m_', num2str(mx),...
+%         '_none.fig');
+% savefig(fig8, figName);
+
+
+%cd('../');
 
 CondNumber = condest(L);
 disp('Condition Number before prec.');
 disp(CondNumber);
 
-fig7 = figure(7);
-spy(L);
-hold on;
-figName = strcat('sparsity_k_', num2str(k), '_m_', num2str(mx),...
-        '_none.fig');
-savefig(fig7, figName);
+% fig7 = figure(7);
+% spy(L);
+% hold on;
+% figName = strcat('sparsity_k_', num2str(k), '_m_', num2str(mx),...
+%         '_none.fig');
+% savefig(fig7, figName);
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -103,17 +119,15 @@ savefig(fig7, figName);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ANALYTICAL SOLUTION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-x=0:h:1;
-y=0:h:1;
+x=[0 h/2:h:1-h/2 1];
+y=[0 h/2:h:1-h/2 1];
 [X, Y]=meshgrid(x, y);
 uxy=zeros(size(X));
 %tic
-for n=1:100
-    cn=(1-(-1)^n)/(sinh(n*pi)*n);
-%     uxy=uxy+cn*sin(n*pi*X)...
-%         .*((exp(n*pi*(Y))-exp(n*pi*(2.-Y))))...
-%         /(1-exp(2*n*pi));
-    uxy=uxy+cn*sin(n*pi*X).*sinh(n*pi*Y);
+nFuncs = 200;
+for n=1:nFuncs
+    cn = (1-(-1)^n)/(sinh(n*pi)*n);
+    uxy = uxy + cn*sin(n*pi*X).*sinh(n*pi*Y);
 end
 uxy=(200/pi).*uxy;
 %toc
@@ -125,73 +139,88 @@ timePREC = 0;
 
 disp(strcat('PRECONDICIONADOR = ', preconditioner));
 
-% NO Preconditioning
-disp(timePREC);
+% If there is preconditioning
+if is_preconditioned == 1
 
-% Jacobi
-if strcmp(preconditioner, 'Jacobi') == 1
-    tic
-    M_jacobi = (diag(diag(L)))^-1;
-    L = M_jacobi * L;
-    RHS = M_jacobi * RHS;
-    timePREC = toc();
-    disp(timePREC);
-end
-
-% Gauss-Seidel
-if strcmp(preconditioner, 'Gauss_Seidel') == 1
-    tic
-    M_GS = (tril(L))^-1;
-    L= M_GS*L;
-    RHS = M_GS*RHS;
-    timePREC = toc();
-    disp(timePREC);
-end
-
-% SOR
-if strcmp(preconditioner, strcat('SOR_omega_', num2str(omega))) == 1
-    tic
-    n=size(L);
-    tStart=tic;
-    omega=1;
-    D=diag(diag(L));
-    L=-(tril(L)-D);
-    M_sor=(1/omega)*D-L;
-    L=M_sor\L;
-    RHS=M_sor\RHS;
-    timePREC = toc();
-    disp(timePREC);
-end
-
-% ILU
-if strcmp(preconditioner, 'ILU') == 1
-    tic
-    setup.type = 'ilutp';
-    setup.droptol = 1e-6;
-    setup.udiag=1;
+    % Jacobi
+    if strcmp(preconditioner, 'Jacobi') == 1
+        tic
+        M_jacobi = (diag(diag(L)))^-1;
+        L = M_jacobi * L;
+        RHS = M_jacobi * RHS;
+        timePREC = toc();
+        disp(timePREC);
+    end
     
-    [LT,UT] = ilu(sparse(L), setup);
-    M=LT * UT;
-    L=M\L;
-    RHS=M\RHS;
-    timePREC = toc();
+    % Gauss-Seidel
+    if strcmp(preconditioner, 'Gauss_Seidel') == 1
+        tic
+        M_GS = (tril(L))^-1;
+        L= M_GS*L;
+        RHS = M_GS*RHS;
+        timePREC = toc();
+        disp(timePREC);
+    end
+    
+    % SOR
+    if strcmp(preconditioner, strcat('SOR_omega_', num2str(omega))) == 1
+        tic
+        n=size(L);
+        tStart=tic;
+        omega=1;
+        D=diag(diag(L));
+        L=-(tril(L)-D);
+        M_sor=(1/omega)*D-L;
+        L=M_sor\L;
+        RHS=M_sor\RHS;
+        timePREC = toc();
+        disp(timePREC);
+    end
+    
+    % ILU
+    if strcmp(preconditioner, 'ILU') == 1
+        tic
+        setup.type = 'ilutp';
+        setup.droptol = 1e-6;
+        setup.udiag=1;
+        
+        [LT,UT] = ilu(sparse(L), setup);
+        M=LT * UT;
+        L=M\L;
+        RHS=M\RHS;
+        timePREC = toc();
+        disp(timePREC);
+    end
+    
+    % Estimating condition number of coefficient matrix AFTER preconditioning
+    CondNumber = condest(L);
+    disp('Condition Number after prec.');
+    disp(CondNumber);
+
+    fig9 = figure(9);
+    spy(L);
+    hold on;
+    figName = strcat('sparsity_k_', num2str(k), '_m_', num2str(mx),...
+            '_', preconditioner, '.fig');
+    savefig(fig9, figName);
+
+else
+    % NO Preconditioning
     disp(timePREC);
 end
 
-% Estimating condition number of coefficient matrix AFTER preconditioning
-CondNumber = condest(L);
-disp('Condition Number after prec.');
-disp(CondNumber);
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SPECTRAL ANALYSYS - EIGENVALUES
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Six largest-magnitude eigenvalues of coefficient matrix
-% max_autovals = eigs(L);
+nEigs = 10;
+
+% n largest-magnitude eigenvalues of coefficient matrix
+max_autovals = eigs(L, nEigs, 'largestabs', 'MaxIterations', 1000);
 
 % n smallest-magnitude eigenvalues of coefficient matrix
-% nEigs = 10;
-% min_autovals = eigs(L, nEigs, 'smallestabs');
+min_autovals = eigs(L, nEigs, 'smallestabs');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % NUMERICAL SOLUTION - BACKSLASH
@@ -302,9 +331,134 @@ SOLGRS = reshape(SOLG, mx + 2, ny + 2);
 % disp(time4)
 % SOL4RS = reshape(SOL4, mx+2, ny+2);
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FINITE-DIFFERENCE METHOD
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Parameters
+n = 32 + 2;  % Grid size (n x n), meaning (n-2)*(n-2) interior points
+hh = 1/(n-2);  % Grid spacing
+
+% Initialize the coefficient matrix A and right-hand side vector b
+N = (n-2)^2;  % Number of interior points
+AA = sparse(N, N);  % Use sparse matrix for efficiency
+bb = zeros(N, 1);
+
+% Assemble the system Ax=b
+for i = 1:(n-2)
+    for j = 1:(n-2)
+        % Current point index in the linear system
+        idx = (i-1)*(n-2) + j;
+        
+        % Diagonal term
+        AA(idx,idx) = -4;
+        
+        % Connect to left neighbor
+        if j > 1
+            AA(idx, idx-1) = 1;
+        end
+        
+        % Connect to right neighbor
+        if j < n-2
+            AA(idx, idx+1) = 1;
+        end
+        
+        % Connect to bottom neighbor
+        if i < n-2
+            AA(idx, idx+n-2) = 1;
+        end
+        
+        % Connect to top neighbor
+        if i > 1
+            AA(idx, idx-(n-2)) = 1;
+        end
+        
+        % Modify b for boundary conditions
+        bb(idx) = 0;
+        
+        % Top boundary condition (u(x,1) = 100)
+%         if i == 1
+%             bb(idx) = bb(idx) - 100;
+%         end
+
+        % Bottom boundary condition (u(x,0) = 100)
+        if i == (n-2)
+            bb(idx) = bb(idx) - 100;
+        end
+        
+        % Other boundary conditions (u(x,0) = u(0,y) = u(1,y) = 0)
+        % are already handled by the zero entries in b
+    end
+end
+
+% Print the full system for small grids
+% if n <= 6
+%     fprintf('Coefficient Matrix A:\n');
+%     full(AA)
+%     fprintf('\nRight-hand side vector b:\n');
+%     bb
+% end
+
+% Solve the system
+uu_interior = AA\bb;
+
+% Reconstruct the full solution
+uu = zeros(n, n);
+% Fill interior points
+for i = 1:(n-2)
+    for j = 1:(n-2)
+        uu(i+1,j+1) = uu_interior((i-1)*(n-2) + j);
+    end
+end
+% Fill boundary points
+uu(1,:) = 0;        % Bottom boundary
+uu(n,:) = 100;      % Top boundary
+uu(:,1) = 0;        % Left boundary
+uu(:,n) = 0;        % Right boundary
+
+% Create grid for plotting
+[X, Y] = meshgrid(linspace(0,1,n), linspace(0,1,n));
+
+% Create 3D surface plot
+fig10 = figure(10);
+%figure('Position', [100, 100, 800, 600]);
+%surf(X, Y, u);
+imagesc(uu);
+shading interp;
+%colormap jet;
+set(gca, 'CLim', [0 100]);
+colorbar;
+
+% Customize the plot
+title('2D Laplace Equation Solution (Linear System)', 'FontSize', 14);
+xlabel('x', 'FontSize', 12);
+ylabel('y', 'FontSize', 12);
+% zlabel('u(x,y)', 'FontSize', 12);
+% view(45, 45);
+
+% Create contour plot
+% figure('Position', [100, 100, 800, 600]);
+% contourf(X, Y, u, 20);
+% colormap jet;
+% colorbar;
+% title('Contour Plot of Solution', 'FontSize', 14);
+% xlabel('x', 'FontSize', 12);
+% ylabel('y', 'FontSize', 12);
+
+% Print solution statistics
+fprintf('\nSolution Statistics:\n');
+fprintf('Maximum value: %f\n', max(uu(:)));
+fprintf('Minimum value: %f\n', min(uu(:)));
+fprintf('System size: %d x %d\n', N, N);
+fprintf('Condition number of A: %e\n', condest(AA));
+
+figName = strcat('fdm_k_', num2str(k), '_m_', num2str(mx),...
+        '_prec_', preconditioner, '_', datestr(now,30), '.fig');
+savefig(fig10, figName);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % FIGURES
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if plot_figures == 1       
     figure(1)
     imagesc(flipud(uxy))
@@ -338,7 +492,7 @@ if plot_figures == 1
         '\_prec\_', preconditioner);
     title(titleMVEC, 'FontSize', 16);
     figName = strcat('m(j)_k_', num2str(k), '_m_', num2str(mx),...
-        '_prec_', preconditioner, '.fig');
+        '_prec_', preconditioner, '_', datestr(now,30), '.fig');
     savefig(fig3, figName);
     
     fig4 = figure(4);
@@ -376,7 +530,7 @@ if plot_figures == 1
     pbaspect([4 3 1]); % or ([16 9 1])
     hold on;
     figName = strcat('relresvec_k', num2str(k), '_m_', num2str(mx),...
-        '_prec_', preconditioner, '.fig');
+        '_prec_', preconditioner, '_', datestr(now,30), '.fig');
     savefig(fig4, figName);
     
         figure(5)
@@ -423,7 +577,7 @@ if plot_figures == 1
         ', tiempo = ', num2str(timeG), 's');
     hold on;
     figName = strcat('relresvec_GMRESm_k', num2str(k), '_m_', num2str(mx),...
-        '_prec_', preconditioner, '.fig');
+        '_prec_', preconditioner, '_', datestr(now,30), '.fig');
     savefig(fig8, figName);
 end
 
